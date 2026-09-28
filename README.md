@@ -38,6 +38,8 @@ labels and can change while keys remain equal. Pure circuits also have no
 standalone installed verifier key in this profile, so they cannot be verified
 as deployed operations.
 
+The [full-contract versus private-interface comparison](#full-contract-versus-private-interface) shows the repository's concrete Compact 0.34.0 example of different source text producing the same six named verifier keys.
+
 Repository map:
 
 - `compact/`: publisher module and interface template.
@@ -175,6 +177,64 @@ node src/verify.mjs --bundle bundle/fungible \
 
 Offline payload and state files can exercise verification, but they do not
 establish a network, emitting address, canonical order, or state provenance.
+
+### Full contract versus private interface
+
+The checked-in [full contract](compact-examples/fungible/Full.compact) imports the [readable wrapper](compact-examples/openzeppelin/FungibleTokenReadable.compact), which imports the complete [vendored token module](compact-examples/openzeppelin/vendor/token/FungibleToken.compact). The [private interface](compact-examples/fungible-private/Interface.compact) instead declares the same seven ledger slots in the same order and with the same types under `hidden1` through `hidden7`, then includes only six named reads. The full contract also exports write circuits such as `transfer` and `approve`; the private interface does not publish that write logic.
+
+These are labeled excerpts from the linked files, not standalone Compact programs. The full module keeps its original field names and calls a helper before reading `_totalSupply`:
+
+**Full token module excerpt:**
+
+```compact
+  export ledger _isInitialized: Boolean;
+  export ledger _balances: Map<Either<Bytes<32>, ContractAddress>, Uint<128>>;
+  export ledger _allowances: Map<Either<Bytes<32>, ContractAddress>,
+                                 Map<Either<Bytes<32>, ContractAddress>, Uint<128>>>;
+  export ledger _totalSupply: Uint<128>;
+
+  export sealed ledger _name: Opaque<"string">;
+  export sealed ledger _symbol: Opaque<"string">;
+  export sealed ledger _decimals: Uint<8>;
+
+  // ...
+
+  circuit assertInitialized(): [] {
+    assert(_isInitialized, "FungibleToken: contract not initialized");
+  }
+
+  // ...
+
+  export circuit totalSupply(): Uint<128> {
+    assertInitialized();
+    return _totalSupply;
+  }
+```
+
+The private interface renames those slots and inlines the same initialization assertion in the selected operation:
+
+**Private interface excerpt:**
+
+```compact
+ledger hidden1: Boolean;
+ledger hidden2: Map<Either<Bytes<32>, ContractAddress>, Uint<128>>;
+ledger hidden3: Map<Either<Bytes<32>, ContractAddress>, Map<Either<Bytes<32>, ContractAddress>, Uint<128>>>;
+ledger hidden4: Uint<128>;
+sealed ledger hidden5: Opaque<"string">;
+sealed ledger hidden6: Opaque<"string">;
+sealed ledger hidden7: Uint<8>;
+
+// ...
+
+export circuit totalSupply(): Uint<128> {
+  assert(hidden1, "FungibleToken: contract not initialized");
+  return hidden4;
+}
+```
+
+These different sources reproduced the same six named keys under Compact 0.34.0: retained validation used the repository's [key comparison script](scripts/check-keys.mjs) to compare the `name`, `symbol`, `decimals`, `totalSupply`, `balanceOf`, and `allowance` verifier-key files byte for byte between the private and full builds. This controlled result does not identify unique original source text or authenticate the original ledger labels, and it does not claim that arbitrary source changes preserve keys.
+
+Each published bundle must still pass Level 3 against its own source and generated artifacts. Changing source or generated artifacts requires rebuilding the generated artifacts and publishing a new bundle commitment. The full build and private-interface bundle are not claimed to share JavaScript, metadata, or commitments merely because these six keys match.
 
 ### Consumers: how to read and verify
 
