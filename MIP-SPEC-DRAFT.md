@@ -154,6 +154,10 @@ Publications reveal a retrieval location and commitment. Bundles can reveal sour
 
 The [reference repository](https://github.com/acedward/public-interfaces-for-compact-contracts) contains one publication, bundle, and verifier prototype. Retained evidence shows committed artifact checks, installed-key comparison, source-based reproduction, a pure helper without a standalone installed key, and the `alpha`/`beta` field-label example.
 
+### Published example
+
+An informative Stagenet example publishes [this bundle index](https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json) with bundle commitment `4814bf93c6c0a6c81c7839f9be72c80365c2a4179d58171e7acd40906be30891` for contract `5d3233163cd730afb8a31b3e61e77fbd5949fa05d35920bd2b5cea32febaa0f6`. The commitment identifies the committed bundle files; it is not a hash of the index JSON file. The reference repository's [verification walkthrough](README.md#verify-the-published-stagenet-example) gives the operational Level 2 and Level 3 commands.
+
 Those observations apply to the prototype's own format and tools. Its provider observations do not establish a cryptographically authenticated common event/state snapshot. Operational commands and historical deployment evidence remain in the repository and its retained research.
 
 ## Testing
