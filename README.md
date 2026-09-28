@@ -1,31 +1,21 @@
-# MIP-xxxx: Public Interfaces for Compact Contracts
+# MIP-xxxx: Public Interfaces for Midnight Contracts
 
 ## Summary
 
-This repository contains a Draft MIP for publishing and verifying Compact
-interface artifacts, plus a reference implementation that can also evaluate
-operations locally.
-A contract emits an event identifying a bundle commitment and retrieval
-location.
-A consumer can then check the committed files, compare published verifier keys
-with named installed operations, and reproduce the generated artifacts.
+This repository contains a Draft MIP for publishing and verifying Midnight contract interface artifacts, plus a Compact-specific reference implementation that can also evaluate operations locally. A contract emits an event identifying a bundle commitment and retrieval location. A consumer can then check the committed files, compare published verifier keys with named installed operations, and reproduce the generated artifacts.
 
 The [MIP methodology](MIP-SPEC-DRAFT.md) defines three cumulative levels:
 
 1. Level 1 matches published files with the on-chain event commitment.
 2. Level 2 matches every published verifier key with its same-named installed
    verifier key at the identified state.
-3. Level 3 reproduces keys, generated JavaScript including its operation
-   instructions, and supporting artifacts from source using the disclosed
-   build inputs.
+3. Level 3 reproduces keys, generated interface code, operation instructions, and supporting artifacts from source using a trusted build toolchain and disclosed inputs.
+
+Named operations are contract entry points backed by zero-knowledge circuits.
 
 The [published Stagenet example walkthrough](#verify-the-published-stagenet-example) provides copyable commands for the repository's Level 2 and Level 3 checks.
 
-The MIP names the `[v1]` commitment profile and the artifact-verification
-workflow; it does not define this repository's full wire schema, toolchain, or
-command line. The prototype's `L1`, `L2`, and `L3` output describes its concrete
-checks, not universal format conformance. Invocation and local execution are
-prototype features outside the MIP.
+The MIP names the `[v1]` commitment profile and the artifact-verification workflow; it does not define this repository's full wire schema, toolchain, or command line. The Compact prototype's `L1`, `L2`, and `L3` output describes its concrete checks, not universal format conformance. Invocation and local execution are prototype features outside the MIP.
 
 An interface can be open or partial-source:
 
@@ -33,10 +23,7 @@ An interface can be open or partial-source:
 - A partial-source interface publishes only the selected named operations and
   enough ledger layout to reproduce their generated artifacts.
 
-Neither form authenticates original ledger field names. Those names are source
-labels and can change while keys remain equal. Pure circuits also have no
-standalone installed verifier key in this profile, so they cannot be verified
-as deployed operations.
+Neither form authenticates original ledger field names. Those names are source labels and can change while keys remain equal. A circuit without a corresponding installed verifier key—including a pure circuit published only as a helper—cannot be independently authenticated at Level 2. Its contribution to a named keyed operation is covered by that operation's Level 3 reproduction.
 
 The [full-contract versus private-interface comparison](#full-contract-versus-private-interface) shows the repository's concrete Compact 0.34.0 example of different source text producing the same six named verifier keys.
 
@@ -48,8 +35,7 @@ Repository map:
 - `scripts/` and `test/`: builds and checks.
 - `deploy-tools/`: historical Stagenet example tooling; not library code.
 
-The project targets Midnight 2.x / Ledger v9 with Compact compiler 0.34.0,
-language 0.26.0, and runtime 0.19.0. Node 20 or later is required.
+The Compact reference implementation targets Midnight 2.x / Ledger v9 with Compact compiler 0.34.0, language 0.26.0, and runtime 0.19.0. Node 20 or later is required.
 
 ```sh
 npm ci
@@ -343,8 +329,4 @@ This is a reference observation, not an activation or conformance claim. Public 
 
 ## Spec
 
-The [MIP](MIP-SPEC-DRAFT.md) defines publication and artifact verification
-through reproduced compiler output for named operations. It stops before code
-invocation. This README is an operator guide for one implementation's formats,
-tools, commands, and optional execution features; those details are not
-universal methodology requirements.
+The [MIP](MIP-SPEC-DRAFT.md) defines publication and artifact verification through reproduced build-toolchain output for named operations. It stops before code invocation. This README is an operator guide for the Compact reference implementation's formats, tools, commands, and optional execution features; those details are not universal methodology requirements.

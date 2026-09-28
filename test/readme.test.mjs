@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// The README is the standard's only document: its How to is what owners and
-// consumers follow, and its Spec is the normative text. Its guarantees:
+// The MIP is authoritative for the methodology; the README documents the
+// reference implementation's operator workflow. The README's guarantees:
 //
 //   it keeps the outline, so the rules stay in one place: Summary, How to
 //   (contract owners, consumers) and Spec, and no other heading;
@@ -8,8 +8,8 @@
 //   owner to add compiles as written;
 //   the live example's facts are the recorded deployment's;
 //   it never says that a key which passed Level 2 ties the executed code to the
-//   chain: at Level 2 the wrapper that runs is the entry writer's code, and only
-//   Level 3 ties the code.
+//   chain: at Level 2 the publisher's wrapper remains trusted, and only Level 3
+//   ties the code to reproduced source and artifacts.
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,11 +26,13 @@ describe('the README', () => {
   it('follows the outline: the title, Summary, How to with its two parts, and Spec, and no other heading', () => {
     const outsideCode = README.replace(/^ *```[\s\S]*?^ *```$/gm, '');
     expect(outsideCode.match(/^#+ .*$/gm)).toEqual([
-      '# MIP-xxxx: Public Interfaces for Compact Contracts',
+      '# MIP-xxxx: Public Interfaces for Midnight Contracts',
       '## Summary',
       '## How to',
-      '### Contract owners: how to implement the spec',
+      '### Contract owners: how to use the reference format',
+      '### Full contract versus private interface',
       '### Consumers: how to read and verify',
+      '### Verify the published Stagenet example',
       '## Spec',
     ]);
   });
@@ -47,16 +49,16 @@ describe('the README', () => {
     const inserted = Object.values(record.inserted).map((t) => t.blockHeight).sort((a, b) => a - b);
     for (const fact of [
       record.address, record.url, record.bundle.commitment, record.network.indexer,
-      `${record.publish.txHash}\`, block ${record.publish.blockHeight}`,
+      `${record.publish.txHash}\` at block ${record.publish.blockHeight}`,
       `blocks ${inserted[0]} to ${inserted.at(-1)}`,
       `name() = "${record.token.name}"`, `symbol() = "${record.token.symbol}"`, `decimals() = ${record.token.decimals}`,
       `totalSupply() = ${record.supply.amount}`, record.demoHolder,
     ]) expect(prose).toContain(fact);
   });
 
-  it('says that at Level 2 the executed wrapper is the entry writer\'s code, and that only Level 3 ties the code', () => {
-    expect(prose).toMatch(/at Level 2 the executed wrapper is the entry writer's code/i);
-    expect(prose).toMatch(/only Level 3 ties the code/i);
+  it('preserves Level 2 wrapper trust and says that only Level 3 ties code to reproduced source and artifacts', () => {
+    expect(prose).toMatch(/at Level 2 the publisher's wrapper remains trusted/i);
+    expect(prose).toMatch(/only Level 3 ties the code to reproduced source and artifacts/i);
     expect(prose).not.toMatch(/the published circuits are the deployed circuits/i);
   });
 });
