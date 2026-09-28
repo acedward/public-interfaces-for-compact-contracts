@@ -19,6 +19,8 @@ The [MIP methodology](MIP-SPEC-DRAFT.md) defines three cumulative levels:
    instructions, and supporting artifacts from source using the disclosed
    build inputs.
 
+The [published Stagenet example walkthrough](#verify-the-published-stagenet-example) provides copyable commands for the repository's Level 2 and Level 3 checks.
+
 The MIP names the `[v1]` commitment profile and the artifact-verification
 workflow; it does not define this repository's full wire schema, toolchain, or
 command line. The prototype's `L1`, `L2`, and `L3` output describes its concrete
@@ -35,6 +37,8 @@ Neither form authenticates original ledger field names. Those names are source
 labels and can change while keys remain equal. Pure circuits also have no
 standalone installed verifier key in this profile, so they cannot be verified
 as deployed operations.
+
+The [full-contract versus private-interface comparison](#full-contract-versus-private-interface) shows the repository's concrete Compact 0.34.0 example of different source text producing the same six named verifier keys.
 
 Repository map:
 
@@ -174,6 +178,64 @@ node src/verify.mjs --bundle bundle/fungible \
 Offline payload and state files can exercise verification, but they do not
 establish a network, emitting address, canonical order, or state provenance.
 
+### Full contract versus private interface
+
+The checked-in [full contract](compact-examples/fungible/Full.compact) imports the [readable wrapper](compact-examples/openzeppelin/FungibleTokenReadable.compact), which imports the complete [vendored token module](compact-examples/openzeppelin/vendor/token/FungibleToken.compact). The [private interface](compact-examples/fungible-private/Interface.compact) instead declares the same seven ledger slots in the same order and with the same types under `hidden1` through `hidden7`, then includes only six named reads. The full contract also exports write circuits such as `transfer` and `approve`; the private interface does not publish that write logic.
+
+These are labeled excerpts from the linked files, not standalone Compact programs. The full module keeps its original field names and calls a helper before reading `_totalSupply`:
+
+**Full token module excerpt:**
+
+```compact
+  export ledger _isInitialized: Boolean;
+  export ledger _balances: Map<Either<Bytes<32>, ContractAddress>, Uint<128>>;
+  export ledger _allowances: Map<Either<Bytes<32>, ContractAddress>,
+                                 Map<Either<Bytes<32>, ContractAddress>, Uint<128>>>;
+  export ledger _totalSupply: Uint<128>;
+
+  export sealed ledger _name: Opaque<"string">;
+  export sealed ledger _symbol: Opaque<"string">;
+  export sealed ledger _decimals: Uint<8>;
+
+  // ...
+
+  circuit assertInitialized(): [] {
+    assert(_isInitialized, "FungibleToken: contract not initialized");
+  }
+
+  // ...
+
+  export circuit totalSupply(): Uint<128> {
+    assertInitialized();
+    return _totalSupply;
+  }
+```
+
+The private interface renames those slots and inlines the same initialization assertion in the selected operation:
+
+**Private interface excerpt:**
+
+```compact
+ledger hidden1: Boolean;
+ledger hidden2: Map<Either<Bytes<32>, ContractAddress>, Uint<128>>;
+ledger hidden3: Map<Either<Bytes<32>, ContractAddress>, Map<Either<Bytes<32>, ContractAddress>, Uint<128>>>;
+ledger hidden4: Uint<128>;
+sealed ledger hidden5: Opaque<"string">;
+sealed ledger hidden6: Opaque<"string">;
+sealed ledger hidden7: Uint<8>;
+
+// ...
+
+export circuit totalSupply(): Uint<128> {
+  assert(hidden1, "FungibleToken: contract not initialized");
+  return hidden4;
+}
+```
+
+These different sources reproduced the same six named keys under Compact 0.34.0: retained validation used the repository's [key comparison script](scripts/check-keys.mjs) to compare the `name`, `symbol`, `decimals`, `totalSupply`, `balanceOf`, and `allowance` verifier-key files byte for byte between the private and full builds. This controlled result does not identify unique original source text or authenticate the original ledger labels, and it does not claim that arbitrary source changes preserve keys.
+
+Each published bundle must still pass Level 3 against its own source and generated artifacts. Changing source or generated artifacts requires rebuilding the generated artifacts and publishing a new bundle commitment. The full build and private-interface bundle are not claimed to share JavaScript, metadata, or commitments merely because these six keys match.
+
 ### Consumers: how to read and verify
 
 Obtain the verifier independently of the bundle. The prototype command is:
@@ -225,36 +287,59 @@ The prototype CLI currently accepts these argument spellings:
 These are CLI spellings for this implementation. Other implementations can use
 different representations while still reporting the typed arguments they used.
 
-The repository includes a historical Stagenet deployment:
+### Verify the published Stagenet example
+
+The repository retains this historical Stagenet publication. The bundle commitment identifies the committed file paths and contents; it is not a SHA-256 hash of `index.json`.
 
 | Item | Value |
 |---|---|
 | Contract | `5d3233163cd730afb8a31b3e61e77fbd5949fa05d35920bd2b5cea32febaa0f6` |
-| Bundle | `https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json` |
-| Commitment | `4814bf93c6c0a6c81c7839f9be72c80365c2a4179d58171e7acd40906be30891` |
+| Hosted bundle index | [https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json](https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json) |
+| Expected bundle commitment | `4814bf93c6c0a6c81c7839f9be72c80365c2a4179d58171e7acd40906be30891` |
 | Publication transaction | `79fa53ab3601a373b778d3c0f6d457784457c5540276b254c85d55a7bc55b3de` at block 608267 |
-| Indexer used in the historical example | `https://indexer.stagenet.shielded.tools/api/v4/graphql` |
+| Stagenet indexer | `https://indexer.stagenet.shielded.tools/api/v4/graphql` |
 
-The historical record reports `name() = "Off-Chain Reads Private Token"`,
-`symbol() = "OCRP"`, `decimals() = 18`, and
-`totalSupply() = 1000000000000000000000000`. That supply is assigned to the
-keyless demo holder
-`13f03a2916c2bbb04b050ffb5061187386c73af8ba57bf70c7ddf1fa8c2a005a`.
-The deployment inserted unpublished write operations in blocks 608232 to
-608238 before publishing the read bundle. The publication record identifies
-`79fa53ab3601a373b778d3c0f6d457784457c5540276b254c85d55a7bc55b3de`, block
-608267.
+Start from an independent checkout with Node 20 or later and install the locked dependencies:
 
 ```sh
-node src/verify.mjs \
+git clone https://github.com/acedward/public-interfaces-for-compact-contracts.git
+cd public-interfaces-for-compact-contracts
+npm ci
+```
+
+Level 2 includes Level 1. This command obtains the newest publication event and installed keys from the named contract, fetches the explicit hosted URL, checks that its index and 13 committed files give the event commitment, and compares the six published verifier keys with the same-named installed keys:
+
+```sh
+npm run verify -- \
+  --bundle-url https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json \
+  --indexer https://indexer.stagenet.shielded.tools/api/v4/graphql \
+  --address 5d3233163cd730afb8a31b3e61e77fbd5949fa05d35920bd2b5cea32febaa0f6 \
+  --level 2
+```
+
+The URL override remains subject to the selected on-chain event: Level 1 requires the fetched index and recomputed file commitment to equal that event's commitment. A successful run reports commitment `4814bf93c6c0a6c81c7839f9be72c80365c2a4179d58171e7acd40906be30891`, `L1 OK` for the commitment and all 13 files, `L2 OK` for `allowance`, `balanceOf`, `decimals`, `name`, `symbol`, and `totalSupply`, then `verified up to level 2`. Compare the printed commitment with the expected value in the table; a different value identifies a replacement publication rather than this recorded example, even if the checks for that newer publication succeed.
+
+Level 3 additionally requires the trusted Compact 0.34.0 compiler launcher on `PATH`. Check the compiler binary rather than only the toolchain manager:
+
+```sh
+compact compile --version
+```
+
+Then rerun the same artifact-only verification at Level 3:
+
+```sh
+npm run verify -- \
+  --bundle-url https://compact-off-chain-circuits.pages.dev/public-interface/erc20-private/index.json \
   --indexer https://indexer.stagenet.shielded.tools/api/v4/graphql \
   --address 5d3233163cd730afb8a31b3e61e77fbd5949fa05d35920bd2b5cea32febaa0f6 \
   --level 3
 ```
 
-This is a reference observation, not an activation or conformance claim. Public
-services can be incomplete or queried at different snapshots; record their
-network, event, state, and observation limitations.
+A successful Level 3 run repeats Levels 1 and 2, reports `L3 OK` for all six verifier keys, `contract/index.js`, and `compiler/contract-info.json`, then `verified up to level 3`. Neither command supplies `--circuit`, so the verifier does not invoke an operation. No wallet, mnemonic, proof service, signing, transaction, or redeployment is required.
+
+The historical record also reports `name() = "Off-Chain Reads Private Token"`, `symbol() = "OCRP"`, `decimals() = 18`, and `totalSupply() = 1000000000000000000000000`. That supply is assigned to the keyless demo holder `13f03a2916c2bbb04b050ffb5061187386c73af8ba57bf70c7ddf1fa8c2a005a`. The deployment inserted unpublished write operations in blocks 608232 to 608238 before publishing the read bundle. These are retained deployment facts; the verification commands above do not execute those operations.
+
+This is a reference observation, not an activation or conformance claim. Public services can be incomplete or queried at different snapshots; record their network, event, state, and observation limitations.
 
 ## Spec
 
