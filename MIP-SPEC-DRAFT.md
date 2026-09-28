@@ -1,6 +1,6 @@
 ---
 MIP: xxxx
-Title: Public Interfaces for Compact Contracts
+Title: Public Interfaces for Midnight Contracts
 Authors:
   - Edward Alvarado <edward.alvarado@midnight.foundation>
 Status: Draft
@@ -30,7 +30,7 @@ License: Apache-2.0
 
 ## Abstract
 
-This MIP describes how a Compact contract publishes a discoverable bundle and how a consumer verifies its artifacts. A contract event identifies immutable bundle content and a retrieval location. Level 1 establishes that the retrieved files match the on-chain commitment. Level 2 establishes that every published keyed operation has the same verifier key as the same-named installed operation at an identified contract state. Level 3 uses a trusted compiler and disclosed build inputs to reproduce the keys, generated JavaScript, operation instructions within that JavaScript, and supporting artifacts for those named operations.
+This MIP describes how a Midnight contract publishes a discoverable bundle and how a consumer verifies its artifacts. A contract event identifies immutable bundle content and a retrieval location. Level 1 establishes that the retrieved files match the on-chain commitment. Level 2 establishes that every published keyed operation has the same verifier key as the same-named installed operation at an identified contract state. Level 3 uses a trusted build toolchain and disclosed build inputs to reproduce the keys, generated interface code, operation instructions, and supporting artifacts for those named operations.
 
 The output is a verified interface artifact set with a record of its publication, state, named operations, tools, completed levels, and provider assumptions. Verification stops at Level 3; executing the generated code is outside this MIP.
 
@@ -38,7 +38,7 @@ The output is a verified interface artifact set with a record of its publication
 
 Installed verifier keys and raw contract state do not tell a wallet, explorer, or application where to obtain the source and generated code that describe a contract's public interface. Publisher-hosted code alone also leaves the consumer unable to tell whether files changed, whether named operations match the contract, or whether the generated artifacts came from the published source.
 
-The three cumulative levels answer those questions separately. This lets a consumer distinguish committed files, installed-key equality, and reproducible compiler output without treating any one of them as a claim about unique original source or code deployed on chain.
+The three cumulative levels answer those questions separately. This lets a consumer distinguish committed files, installed-key equality, and reproducible build output without treating any one of them as a claim about unique original source or code deployed on chain.
 
 ## Specification
 
@@ -54,7 +54,7 @@ The `[v1]` bundle commitment profile is `ecmh-jubjub-grouphash`: an elliptic-cur
 
 An open interface publishes the full contract source module. A partial-source interface publishes source sufficient to rebuild selected named operations, including the ledger layout and imports on which they depend. Both forms are accepted by exact Level 3 reproduction, not by an assumption that a source transformation is harmless.
 
-A small retained compiler probe illustrates the boundary. These two source excerpts keep the ledger slot, type, and exported operation name while changing the ledger label:
+A small retained Compact compiler probe illustrates the boundary. These two source excerpts keep the ledger slot, type, and exported operation name while changing the ledger label:
 
 ```compact
 export ledger alpha: Uint<64>;
@@ -66,17 +66,19 @@ export ledger beta: Uint<64>;
 export circuit readValue(): Uint<64> { return beta; }
 ```
 
-The generated ledger metadata excerpt changes from `{"ledger":[{"index":0,"name":"alpha"}]}` to `{"ledger":[{"index":0,"name":"beta"}]}`. Retained compilation evidence records byte-identical `readValue` keys, showing that key equality does not authenticate the original label; this is not a general theorem about renaming. Because generated JavaScript may also differ, the renamed source and all generated artifacts must be rebuilt and recommitted; manual JSON or JavaScript edits fail Level 1 against the old commitment or Level 3 against the source.
+The generated ledger metadata excerpt changes from `{"ledger":[{"index":0,"name":"alpha"}]}` to `{"ledger":[{"index":0,"name":"beta"}]}`. Retained Compact compilation evidence records byte-identical `readValue` keys, showing that key equality does not authenticate the original label; this is not a general theorem about renaming. Because the generated Compact interface code may also differ, the renamed source and all generated artifacts must be rebuilt and recommitted; manual JSON or generated-code edits fail Level 1 against the old commitment or Level 3 against the source.
 
 ### Publication
 
 A **publisher** creates a bundle. A **consumer** verifies it. An **event/state provider** supplies the emitting contract, publication order, installed keys, and identified state together with the limits of its observation.
 
+Named operations are contract entry points backed by zero-knowledge circuits. Level 2 compares each published verifier key with the installed key under the same operation name.
+
 The publisher proceeds in this order:
 
 1. Select a nonempty set of named keyed operations and choose an open or partial-source interface.
-2. Record the source, compiler, and build inputs, then compile the interface.
-3. Collect each named operation's verifier key, generated `.js` including its operation instructions, and supporting compiler artifacts. Check the names and keys against the intended contract state when it is available; this publisher check does not replace consumer Level 2.
+2. Record the source, build toolchain, and build inputs, then build the interface.
+3. Collect each named operation's verifier key, generated interface code, operation instructions, and supporting artifacts. Check the names and keys against the intended contract state when it is available; this publisher check does not replace consumer Level 2.
 4. Compute the bundle commitment with `ecmh-jubjub-grouphash` and make the bundle available at an immutable retrieval location.
 5. Emit the publication event from the contract, identifying the commitment and retrieval location.
 6. Record the applied and observed event. Submission alone is not an observed publication.
@@ -91,7 +93,7 @@ The consumer selects the newest applicable `[v1]` publication at a stated networ
 |---|---|---|
 | 1 | The committed bundle file set, file identities, and actual contents match the selected on-chain publication commitment. | Committed bundle files and on-chain event commitment. |
 | 2 | Every published verifier key equals its same-named installed verifier key at the identified contract state. | Level 1 and same-named on-chain verifier keys at that state. |
-| 3 | Trusted compilation exactly reproduces the keys, generated `.js` including its operation instructions, and supporting artifacts used for the named operations. | Level 2, trusted compiler, published source, and disclosed build inputs. |
+| 3 | A trusted build exactly reproduces the keys, generated interface code, operation instructions, and supporting artifacts used for the named operations. | Level 2, trusted build toolchain, published source, and disclosed build inputs. |
 
 The consumer verifies in this order:
 
@@ -99,20 +101,20 @@ The consumer verifies in this order:
 2. Retrieve the published files without loading their code. Confirm that the publication and bundle declare `[v1]` and the expected commitment profile.
 3. For Level 1, recompute the commitment over the complete committed bundle file set using each file's identity and actual contents, then compare it with the on-chain event commitment.
 4. For Level 2, obtain installed verifier keys at the recorded state. For every member of the nonempty published keyed-operation set, compare the key with the installed key under exactly the same operation name. A missing name, missing installed key, or mismatch fails Level 2.
-5. For Level 3, use an independently trusted compiler and the disclosed source and build inputs. Rebuild and exactly compare every shipped verifier key, generated `.js` including its operation instructions, and supporting compiler artifact used for each named operation. Missing, additional, or unequal artifacts fail Level 3.
-6. Stop after the artifact comparisons. Produce a verification record naming the publication and state, operations, artifact identity, compiler/build inputs, completed levels, provider assumptions, and any failure or unavailable prerequisite.
+5. For Level 3, use an independently trusted build toolchain and the disclosed source and build inputs. Rebuild and exactly compare every shipped verifier key and all generated interface code, operation instructions, and supporting artifacts used for each named operation. Missing, additional, or unequal artifacts fail Level 3.
+6. Stop after the artifact comparisons. Produce a verification record naming the publication and state, operations, artifact identity, build toolchain and inputs, completed levels, provider assumptions, and any failure or unavailable prerequisite.
 
 Levels are cumulative. A failure or unavailable dependency stops every stronger claim.
 
 ### Verification limits and lifecycle
 
-Level 1 establishes integrity relative to the chosen commitment, not publisher authority or availability. Level 2 establishes the named installed-key relationship, not arbitrary JavaScript behavior beside those keys. Level 3 establishes exact source-to-artifact reproduction under the trusted compiler and build inputs. It does not prove compiler correctness, identify unique original source text, or imply that generated JavaScript is stored or executed on chain.
+Level 1 establishes integrity relative to the chosen commitment, not publisher authority or availability. Level 2 establishes the named installed-key relationship, not arbitrary generated interface code beside those keys. Level 3 establishes exact source-to-artifact reproduction under the trusted build toolchain and build inputs. It does not prove toolchain correctness, identify unique original source text, or imply that generated interface code is stored or executed on chain.
 
-Pure circuits have no standalone installed verifier key for the Level 2 comparison. They cannot be independently authenticated as deployed operations merely because their bundle artifacts reproduce. A pure helper is covered only as part of a named keyed operation's reproduced compiler output.
+A circuit without a corresponding installed verifier key—including a pure circuit published only as a helper—cannot be independently authenticated at Level 2. Its contribution to a named keyed operation is covered by that operation's Level 3 reproduction.
 
 Ledger field names remain source and metadata labels. The example above shows why key equality cannot authenticate them as the deployed author's original names or prove their suggested meaning. Installed operation names are different: they select the on-chain keys compared at Level 2.
 
-A changed publication, file, installed key, selected state, source, compiler, or build input invalidates the dependent checks. Changed source or generated artifacts require recompilation, a new commitment, and a new publication before they can receive Levels 1–3 for the changed bundle.
+A changed publication, file, installed key, selected state, source, build toolchain, or build input invalidates the dependent checks. Changed source or generated artifacts require a rebuild, a new commitment, and a new publication before they can receive Levels 1–3 for the changed bundle.
 
 ### Versioning
 
@@ -144,17 +146,17 @@ This MIP does not create byte-level compatibility between otherwise different bu
 
 ## Security Considerations
 
-The trust boundaries are the publisher and artifact host, event/state provider, commitment construction, and compiler/build environment. Event provenance identifies the emitting contract under provider assumptions but does not prove owner endorsement. An incomplete provider can omit a newer publication or mix observations from different states, so records bind conclusions to the actual provider and observation used.
+The trust boundaries are the publisher and artifact host, event/state provider, commitment construction, and build toolchain environment. Event provenance identifies the emitting contract under provider assumptions but does not prove owner endorsement. An incomplete provider can omit a newer publication or mix observations from different states, so records bind conclusions to the actual provider and observation used.
 
-A malicious publisher can place genuine keys beside forged JavaScript. Such a bundle can satisfy the key relationship but fails Level 3 when the code does not reproduce from the published source. A faulty compiler can reproduce faulty artifacts, so compiler trust and review remain assumptions. The named commitment profile also depends on the security of its implementation; this MIP does not provide a new cryptographic proof.
+A malicious publisher can place genuine keys beside forged generated interface code. Such a bundle can satisfy the key relationship but fails Level 3 when the code does not reproduce from the published source. A faulty build toolchain can reproduce faulty artifacts, so toolchain trust and review remain assumptions. The named commitment profile also depends on the security of its implementation; this MIP does not provide a new cryptographic proof.
 
 Publications reveal a retrieval location and commitment. Bundles can reveal source, operation names, ledger layout and labels, build information, and generated code. Partial-source publication reduces disclosed source but does not make public contract information confidential.
 
 ## Implementation
 
-The [reference repository](https://github.com/acedward/public-interfaces-for-compact-contracts) contains one publication, bundle, and verifier prototype. Retained evidence shows committed artifact checks, installed-key comparison, source-based reproduction, a pure helper without a standalone installed key, and the `alpha`/`beta` field-label example.
+The [reference repository](https://github.com/acedward/public-interfaces-for-compact-contracts) contains one Compact-specific publication, bundle, and verifier prototype. Retained evidence shows committed artifact checks, installed-key comparison, source-based reproduction, a pure helper without a standalone installed key, and the `alpha`/`beta` field-label example.
 
-Those observations apply to the prototype's own format and tools. Its provider observations do not establish a cryptographically authenticated common event/state snapshot. Operational commands and historical deployment evidence remain in the repository and its retained research.
+Those observations apply to the prototype's Compact-specific format and tools. Its provider observations do not establish a cryptographically authenticated common event/state snapshot. Operational commands and historical deployment evidence remain in the repository and its retained research.
 
 ## Testing
 
@@ -162,13 +164,13 @@ Concrete implementations retain vectors for their formats. Behavioral tests for 
 
 - reordering bundle entries leaves `ecmh-jubjub-grouphash` unchanged, while a changed, missing, or additional committed file prevents Level 1;
 - a published keyed operation without an exact same-name installed-key match prevents Level 2;
-- genuine installed keys beside forged or manually edited JavaScript or JSON do not pass Level 3;
+- genuine installed keys beside forged or manually edited generated interface code or metadata do not pass Level 3;
 - open and partial-source bundles reproduce every artifact used for their named operations;
 - the rebuilt `alpha` and `beta` examples can retain identical `readValue` keys while their source and ledger metadata labels differ;
 - a pure circuit without an installed key is not reported as an independently authenticated deployed operation; and
-- changed publications, installed keys, state, source, compiler, or build inputs trigger the applicable revalidation and republication.
+- changed publications, installed keys, state, source, build toolchain, or build inputs trigger the applicable revalidation and republication.
 
-Positive evidence identifies the publication, state, named operations, artifact identities, compiler/build inputs, completed levels, and provider limits. Shared code demonstrates one implementation; independent evidence requires an independently built consumer.
+Positive evidence identifies the publication, state, named operations, artifact identities, build toolchain and inputs, completed levels, and provider limits. Shared code demonstrates one implementation; independent evidence requires an independently built consumer.
 
 ## References
 
